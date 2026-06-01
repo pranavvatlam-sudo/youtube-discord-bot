@@ -38,7 +38,7 @@ client = MyBot()
 def get_latest_youtube_video_with_summary():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     
-    # 1. Search for the latest video ID
+    # Fetch the latest video from the channel
     search_request = youtube.search().list(
         part="snippet",
         channelId=CHANNEL_ID,
@@ -48,27 +48,21 @@ def get_latest_youtube_video_with_summary():
     )
     search_response = search_request.execute()
     
+    # Safely unpack the first item using index [0]
     if search_response and 'items' in search_response and len(search_response['items']) > 0:
-        video_data = search_response['items'][0]
-        video_id = video_data['id']['videoId']
-        title = video_data['snippet']['title']
-        thumbnail_url = video_data['snippet']['thumbnails']['high']['url']
+        first_video = search_response['items'][0]
+        
+        title = first_video['snippet']['title']
+        video_id = first_video['id']['videoId']
+        description = first_video['snippet']['description'] 
+        thumbnail_url = first_video['snippet']['thumbnails']['high']['url']
         video_url = f"https://youtube.com{video_id}"
         
-        # 2. Safely grab the full video description detail
-        video_request = youtube.videos().list(
-            part="snippet",
-            id=video_id
-        )
-        video_response = video_request.execute()
-        
-        description = "No description provided for this video."
-        if video_response and 'items' in video_response and len(video_response['items']) > 0:
-            full_description = video_response['items'][0]['snippet']['description']
-            if full_description.strip():
-                description = full_description[:250] + "..." if len(full_description) > 250 else full_description
-
+        if not description.strip():
+            description = "No description summary provided for this upload."
+            
         return title, video_url, thumbnail_url, description
+        
     return None, None, None, None
 
 @client.tree.command(name="news", description="Fetches the newest video and summary from the monitored YouTube channel.")
@@ -85,12 +79,12 @@ async def news(interaction: discord.Interaction):
                 color=discord.Color.red()
             )
             embed.add_field(name="🎬 Video Title", value=title, inline=False)
-            embed.add_field(name="📝 Video Summary / Description", value=description, inline=False)
+            embed.add_field(name="📝 Video Summary", value=description, inline=False)
             embed.set_image(url=thumbnail_url)
             
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send("Could not find any videos for this channel.")
+            await interaction.followup.send("Could not find any public videos for this channel ID.")
             
     except Exception as e:
         print(f"Error fetching data: {e}")
