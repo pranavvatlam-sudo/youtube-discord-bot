@@ -18,51 +18,66 @@ class MyBot(discord.Client):
 
     async def on_ready(self):
         print(f'Logged in as {self.user} (ID: {self.user.id})')
-        # Sync slash commands globally with Discord
         await self.tree.sync()
         print("Slash commands synchronized.")
 
 client = MyBot()
 
-def get_latest_youtube_video():
-    # Build connection to YouTube API
+def get_latest_youtube_video_with_summary():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     
-    # Request the most recent public video from the channel
-    request = youtube.search().list(
+    # 1. Search for the latest video ID
+    search_request = youtube.search().list(
         part="snippet",
         channelId=CHANNEL_ID,
         maxResults=1,
         order="date",
         type="video"
     )
-    response = request.execute()
+    search_response = search_request.execute()
     
-    if response and 'items' in response and response['items']:
-        video_data = response['items'][0]
-        title = video_data['snippet']['title']
+    if search_response and 'items' in search_response and search_response['items']:
+        video_data = search_response['items'][0]
         video_id = video_data['id']['videoId']
+        title = video_data['snippet']['title']
         thumbnail_url = video_data['snippet']['thumbnails']['high']['url']
         video_url = f"https://youtube.com{video_id}"
-        return title, video_url, thumbnail_url
-    return None, None, None
+        
+        # 2. Make a second precise call to get the full video description detail
+        video_request = youtube.videos().list(
+            part="snippet",
+            id=video_id
+        )
+        video_response = video_request.execute()
+        
+        description = "No description provided for this video."
+        if video_response and 'items' in video_response and video_response['items']:
+            full_description = video_response['items'][0]['snippet']['description']
+            if full_description.strip():
+                # Clean up text length for clean display
+                description = full_description[:250] + "..." if len(full_description) > 250 else full_description
 
-@client.tree.command(name="news", description="Fetches the newest video from the monitored YouTube channel.")
+        return title, video_url, thumbnail_url, description
+    return None, None, None, None
+
+@client.tree.command(name="news", description="Fetches the newest video and summary from the monitored YouTube channel.")
 async def news(interaction: discord.Interaction):
-    # Defer response to prevent the command timing out during API request
     await interaction.response.defer()
     
     try:
-        title, video_url, thumbnail_url = get_latest_youtube_video()
+        title, video_url, thumbnail_url, description = get_latest_youtube_video_with_summary()
         
         if title and video_url:
-            # Create an attractive rich embed message
             embed = discord.Embed(
                 title="📢 Latest Video Upload!",
-                description=f"**[{title}]({video_url})**",
+                url=video_url,
                 color=discord.Color.red()
             )
+            # Display title and summary cleanly in fields
+            embed.add_field(name="🎬 Video Title", value=title, inline=False)
+            embed.add_field(name="📝 Video Summary / Description", value=description, inline=False)
             embed.set_image(url=thumbnail_url)
+            
             await interaction.followup.send(embed=embed)
         else:
             await interaction.followup.send("Could not find any videos for this channel.")
