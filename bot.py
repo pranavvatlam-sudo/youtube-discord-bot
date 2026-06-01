@@ -38,28 +38,37 @@ client = MyBot()
 def get_latest_youtube_video_with_summary():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     
-    # Fetch the latest video from the channel
-    search_request = youtube.search().list(
-        part="snippet",
-        channelId=CHANNEL_ID,
-        maxResults=1,
-        order="date",
-        type="video"
-    )
-    search_response = search_request.execute()
+    # Step 1: Convert your Channel ID directly into your Uploads Playlist ID
+    # YouTube Channel IDs start with 'UC'. Replacing 'UC' with 'UU' targets the uploads playlist!
+    uploads_playlist_id = "UU" + CHANNEL_ID[2:] if CHANNEL_ID.startswith("UC") else CHANNEL_ID
     
-    # Safely unpack the first item using index [0]
-    if search_response and 'items' in search_response and len(search_response['items']) > 0:
-        first_video = search_response['items'][0]
+    # Step 2: Request the very first item from the uploads playlist
+    playlist_request = youtube.playlistItems().list(
+        part="snippet",
+        playlistId=uploads_playlist_id,
+        maxResults=1
+    )
+    playlist_response = playlist_request.execute()
+    
+    # Step 3: Safely check and extract the content
+    if playlist_response and 'items' in playlist_response and len(playlist_response['items']) > 0:
+        latest_item = playlist_response['items'][0]
         
-        title = first_video['snippet']['title']
-        video_id = first_video['id']['videoId']
-        description = first_video['snippet']['description'] 
-        thumbnail_url = first_video['snippet']['thumbnails']['high']['url']
-        video_url = f"https://youtube.com{video_id}"
+        title = latest_item['snippet']['title']
+        description = latest_item['snippet']['description']
+        video_id = latest_item['snippet']['resourceId']['videoId']
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
         
+        # Safely extract the thumbnail image url
+        thumbnails = latest_item['snippet'].get('thumbnails', {})
+        high_res = thumbnails.get('high', thumbnails.get('medium', thumbnails.get('default', {})))
+        thumbnail_url = high_res.get('url', '')
+
+        # Shorten summary description if it is too long for the embed card
         if not description.strip():
-            description = "No description summary provided for this upload."
+            description = "No description text provided for this video upload."
+        elif len(description) > 250:
+            description = description[:250] + "..."
             
         return title, video_url, thumbnail_url, description
         
@@ -80,11 +89,12 @@ async def news(interaction: discord.Interaction):
             )
             embed.add_field(name="🎬 Video Title", value=title, inline=False)
             embed.add_field(name="📝 Video Summary", value=description, inline=False)
-            embed.set_image(url=thumbnail_url)
+            if thumbnail_url:
+                embed.set_image(url=thumbnail_url)
             
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send("Could not find any public videos for this channel ID.")
+            await interaction.followup.send("Could not find any videos inside this channel's public feed.")
             
     except Exception as e:
         print(f"Error fetching data: {e}")
