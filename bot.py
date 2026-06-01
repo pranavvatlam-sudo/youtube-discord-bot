@@ -1,8 +1,24 @@
 import os
 import discord
+import threading
 from discord import app_commands
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
+from flask import Flask
+
+# ----------------- WEB SERVER FOR RENDER -----------------
+# This creates a dummy webpage so Render passes its port scans
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_web_server():
+    # Render automatically provides a PORT environment variable
+    port = int(os.getenv("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+# --------------------------------------------------------
 
 # Load our secret keys
 load_dotenv()
@@ -37,7 +53,7 @@ def get_latest_youtube_video_with_summary():
     search_response = search_request.execute()
     
     if search_response and 'items' in search_response and search_response['items']:
-        video_data = search_response['items'][0]
+        video_data = search_response['items'][0]  # Grab the first item safely
         video_id = video_data['id']['videoId']
         title = video_data['snippet']['title']
         thumbnail_url = video_data['snippet']['thumbnails']['high']['url']
@@ -90,4 +106,8 @@ if __name__ == "__main__":
     if not DISCORD_TOKEN:
         print("Error: DISCORD_TOKEN environment variable is missing!")
     else:
+        # Start the Flask web server in a separate background thread
+        threading.Thread(target=run_web_server, daemon=True).start()
+        
+        # Start the Discord Bot
         client.run(DISCORD_TOKEN)
