@@ -67,8 +67,8 @@ def get_latest_youtube_video_with_summary():
         # Shorten summary description if it is too long for the embed card
         if not description.strip():
             description = "No description text provided for this video upload."
-        elif len(description) > 250:
-            description = description[:250] + "..."
+        elif len(description) > 1500:
+            description = description[:1500] + "..."
             
         return title, video_url, thumbnail_url, description
         
