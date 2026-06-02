@@ -40,7 +40,7 @@ client = MyBot()
 def get_latest_youtube_video_with_ai_summary():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     
-    # 1. Flexible search query to bypass channel playlist restrictions
+    # Flexible search extraction query matching channel filters
     search_request = youtube.search().list(
         part="snippet",
         channelId=CHANNEL_ID,
@@ -50,15 +50,16 @@ def get_latest_youtube_video_with_ai_summary():
     )
     search_response = search_request.execute()
     
+    # Added explicit array indexing [0] to safely parse parameters
     if search_response and 'items' in search_response and len(search_response['items']) > 0:
         first_video = search_response['items'][0]
         
         title = first_video['snippet']['title']
         raw_description = first_video['snippet']['description']
         video_id = first_video['id']['videoId']
-        video_url = f"https://youtube.com{video_id}"
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
         
-        # Safely capture thumbnails
+        # Safely extract matching thumbnails
         thumbnails = first_video['snippet'].get('thumbnails', {})
         high_res = thumbnails.get('high', thumbnails.get('medium', thumbnails.get('default', {})))
         thumbnail_url = high_res.get('url', '')
@@ -103,7 +104,7 @@ async def news(interaction: discord.Interaction):
             embed = discord.Embed(
                 title="📢 Latest Video Upload!",
                 url=video_url,
-                color=discord.Color.green()  # Green themed color profile for Minecraft!
+                color=discord.Color.green()  # Dark green theme matching Minecraft branding
             )
             embed.add_field(name="🎬 Video Title", value=title, inline=False)
             embed.add_field(name="🧠 AI Video Summary & Highlights", value=ai_summary, inline=False)
